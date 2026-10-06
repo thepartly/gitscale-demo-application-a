@@ -1,7 +1,7 @@
 # The pins are written at bootstrap, once each release exists: see the demo
 # plan's Bootstrap. application-a asks for the second shared-libs release.
 [repos]
-"imports/shared-libs" = { url = "https://github.com/thepartly/gitscale-demo-shared-libs.git", revision = "v1-2026.10.06-031212" }
+"imports/shared-libs" = { url = "https://github.com/thepartly/gitscale-demo-shared-libs.git", revision = "v1-2026.10.06-064948" }
 "imports/compose"     = { url = "https://github.com/thepartly/gitscale-demo-compose.git", revision = "v1-2026.10.06-030811" }
 
 # The SDK, as an artefact: what a frontend developer takes instead of the
