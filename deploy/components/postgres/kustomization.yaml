@@ -1,0 +1,6 @@
+# application-a's own postgres, for the demo and for previews.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - statefulset.yaml
+  - service.yaml

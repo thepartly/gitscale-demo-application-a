@@ -1,0 +1,53 @@
+name: build
+on:
+  push:
+    branches-ignore: [main]
+permissions:
+  contents: read
+  packages: write
+env:
+  GITSCALE_REV: 0cb2dce3a3f488e13e4ab83cca10134d478b0477
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  IMAGE: ghcr.io/thepartly/gitscale-demo/application-a
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6
+        id: gitscale
+        with:
+          path: ~/.cargo/bin/git*
+          key: gitscale-${{ env.GITSCALE_REV }}
+      - if: steps.gitscale.outputs.cache-hit != 'true'
+        run: cargo install --git https://github.com/thepartly/gitscale --rev "$GITSCALE_REV" --locked
+      - run: gitscale sync
+      - run: cargo test
+      - working-directory: sdk
+        run: npm ci && npm run build
+      - run: gitscale artefact publish
+      - id: hash
+        run: echo "hash=$(gitscale hash | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - uses: imjasonh/setup-crane@v0.7
+      # The image of exactly these sources, built once: a branch build whose
+      # hash exists has nothing to build.
+      - id: image
+        env:
+          HASH: ${{ steps.hash.outputs.hash }}
+        run: |
+          if crane manifest "$IMAGE:$HASH" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.image.outputs.exists != 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - if: steps.image.outputs.exists != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE }}:${{ steps.hash.outputs.hash }}
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}

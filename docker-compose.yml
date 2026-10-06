@@ -1,0 +1,25 @@
+# How application-a runs in the local stack: from its image, and under
+# x-build — which compose ignores — from its working tree. See compose's
+# README. Its variables are deploy/app.env, the file Kubernetes reads too.
+x-build:
+  application-a:
+    run: cargo watch -w src -w migrations -w imports/shared-libs -x run
+    environment:
+      RUST_LOG: debug
+
+services:
+  application-a:
+    image: ghcr.io/thepartly/gitscale-demo/application-a:${GITSCALE_DEMO_APPLICATION_A_TAG:?}
+    ports: ["8081:8080"]
+    env_file: ${GITSCALE_DEMO_APPLICATION_A_DIR:?}/deploy/app.env
+    depends_on:
+      application-a-postgres: { condition: service_healthy }
+
+  application-a-postgres:
+    image: postgres:17
+    environment: { POSTGRES_USER: demo, POSTGRES_PASSWORD: demo, POSTGRES_DB: demo }
+    healthcheck: { test: pg_isready -U demo, interval: 1s }
+    volumes: ["application-a-postgres:/var/lib/postgresql/data"]
+
+volumes:
+  application-a-postgres:

@@ -1,0 +1,48 @@
+name: release
+on:
+  push:
+    branches: [main]
+concurrency: release
+permissions:
+  contents: write
+  packages: write
+env:
+  GITSCALE_REV: 0cb2dce3a3f488e13e4ab83cca10134d478b0477
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  IMAGE: ghcr.io/thepartly/gitscale-demo/application-a
+jobs:
+  # Nothing is built: the last branch build, after git upgrade --commit, had
+  # this tree and these pins, so its image and SDK artefact are released.
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-tags: true
+      - uses: actions/cache@v6
+        id: gitscale
+        with:
+          path: ~/.cargo/bin/git*
+          key: gitscale-${{ env.GITSCALE_REV }}
+      - if: steps.gitscale.outputs.cache-hit != 'true'
+        run: cargo install --git https://github.com/thepartly/gitscale --rev "$GITSCALE_REV" --locked
+      - run: gitscale sync
+      # The version already on the commit, so a rerun releases it again;
+      # else a new one. The major is written here: v1.
+      - id: name
+        run: |
+          V=$(git tag --points-at HEAD 'v1-*' | head -n1)
+          [ -n "$V" ] || V="v1-$(date -u +%Y.%m.%d-%H%M%S)"
+          echo "release=$V" >> "$GITHUB_OUTPUT"
+      - id: hash
+        run: echo "hash=$(gitscale hash | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - uses: imjasonh/setup-crane@v0.7
+      - env:
+          RELEASE: ${{ steps.name.outputs.release }}
+          HASH: ${{ steps.hash.outputs.hash }}
+        run: |
+          crane tag "$IMAGE:$HASH" "$RELEASE"
+          gitscale artefact publish --reuse "$RELEASE"
+          # Last, so a commit is never released without its images.
+          git tag -f "$RELEASE"
+          git push origin "refs/tags/$RELEASE"
